@@ -5,8 +5,8 @@
     gl.py - all logic to create a bmp file
 """
 
-from utils.gl_color import *
-from utils.gl_encoder import *
+from utils.color import *
+from utils.encoder import *
 from obj import Obj
 import random
 
@@ -114,136 +114,33 @@ class Render(object):
         self.viewport_y = 0
         self.viewport_width = 800
         self.viewport_height = 800
-        self.glClear()
-
-        self.zbuffer = [
-            [-9999999 for x in range(self.width)]
-            for y in range(self.height)
-        ]
+        self.clear()
 
     def point(self, x, y, color):
         self.framebuffer[y][x] = color
 
-    def glCreateWindow(self, width, height):
+    def create_window(self, width, height):
         self.height = height
         self.width = width
 
-    def glViewport(self, x, y, width, height):
+    def viewport(self, x, y, width, height):
         # Setting viewport initial values
         self.viewport_x = x
         self.viewport_y = y
         self.viewport_height = height
         self.viewport_width = width
 
-    def glClear(self):
+    def clear(self):
         BLACK = color(0,0,0)
         self.framebuffer = [
             [BLACK for x in range(self.width)] for y in range(self.height)
         ]
 
-    def glClearColor(self, r=1, g=1, b=1):
-        # get normalized colors as array
-        normalized = normalizeColorArray([r,g,b])
-        clearColor = color(normalized[0], normalized[1], normalized[2])
-
-        self.framebuffer = [
-            [clearColor for x in range(self.width)] for y in range(self.height)
+        self.zbuffer = [
+            [-float('inf') for x in range(self.width)]
+            for y in range(self.height)
         ]
-
-    def glVertex(self, x, y):
-        final_x = round((x+1) * (self.viewport_width/2) + self.viewport_x)
-        final_y = round((y+1) * (self.viewport_height/2) + self.viewport_y)
-        self.point(final_x, final_y, self.color)
-
-    def glColor(self, r=0, g=0, b=0):
-        # get normalized colors as array
-        normalized = normalizeColorArray([r,g,b])
-        self.color = color(normalized[0], normalized[1], normalized[2])
-
-    def glCoordinate(self, value, is_vertical):
-        real_coordinate = ((value+1) * (self.viewport_height/2) + self.viewport_y) if is_vertical else ((value+1) * (self.viewport_width/2) + self.viewport_x)
-        return round(real_coordinate)
-
-    def triangle1(self, A, B, C, color=None):
-        if A.y > B.y:
-            A, B = B, A
-        if A.y > C.y:
-            A, C = C, A
-        if B.y > C.y:
-            B, C = C, B
-
-        dx_ac = C.x - A.x
-        dy_ac = C.y - A.y
-
-        if dy_ac == 0:
-            return
-
-        mi_ac = dx_ac/dy_ac
-
-        dx_ab = B.x - A.x
-        dy_ab = B.y - A.y
-
-        if dy_ab != 0:
-            mi_ab = dx_ab/dy_ab
-
-            for y in range(A.y, B.y + 1):
-                xi = round(A.x - mi_ac * (A.y - y))
-                xf = round(A.x - mi_ab * (A.y - y))
-
-                if xi > xf:
-                    xi, xf = xf, xi
-                for x in range(xi, xf + 1):
-                    self.point(x, y, color)
-
-        dx_bc = C.x - B.x
-        dy_bc = C.y - B.y
-
-        if dy_bc:
-
-            mi_bc = dx_bc/dy_bc
-
-            for y in range(B.y, C.y + 1):
-                xi = round(A.x - mi_ac * (A.y - y))
-                xf = round(B.x - mi_bc * (B.y - y))
-
-                if xi > xf:
-                    xi, xf = xf, xi
-                for x in range(xi, xf + 1):
-                    self.point(x, y, color)
-
-
-    def glLine(self, x0, y0, x1, y1) :
-        #x0 = self.glCoordinate(x0, False)
-        #x1 = self.glCoordinate(x1, False)
-        #y0 = self.glCoordinate(y0, True)
-        #y1 = self.glCoordinate(y1, True)
-
-        steep = abs(y1 - y0) > abs(x1 - x0)
-
-        if steep:
-            x0, y0 = y0, x0
-            x1, y1 = y1, x1
-
-        if x0 > x1:
-            x0, x1 = x1, x0
-            y0, y1 = y1, y0
-
-        dx = abs(x1 - x0)
-        dy = abs(y1 - y0)
-
-        offset = 0 
-        y = y0
-        threshold =  dx
-
-        for x in range(x0, x1):
-            self.point(y, x, self.color) if steep else self.point(x, y, self.color)
-            
-            offset += 2*dy
-
-            if offset >= threshold:
-                y += -1 if y0 > y1 else 1
-                threshold += 2*dx
-
+        
     def load(self, filename='default.obj', translate=[0,0], scale=[1,1]):
         model = Obj(filename)
 
@@ -340,13 +237,12 @@ class Render(object):
                     # point is outside
                     continue
 
-                z = A.z * w + B.z * v + C.z * u
-
-                if z > self.zbuffer[x][y]:
+                z = A.z * u + B.z * v + C.z * w
+                if z > self.zbuffer[y][x]:
                     self.point(x, y, color)
-                    self.zbuffer[x][y] = z
+                    self.zbuffer[y][x] = z
 
-    def glFinish(self, filename='out.bmp'):
+    def finish(self, filename='out.bmp'):
         # starts creating a new bmp file
         f = open(filename, 'bw')
 
@@ -376,5 +272,55 @@ class Render(object):
                     f.write(self.framebuffer[x][y])
         except:
             print('Your obj file is too big. Try another scale/translate values')
+
+        f.close()
+        self.finish_zbuffer(filename='z_buffer.bmp')
+
+
+    def finish_zbuffer(self, filename):
+        # starts creating a new bmp file
+        f = open(filename, 'wb')
+        
+        f.write(char('B'))
+        f.write(char('M'))
+        f.write(dword(14 + 40 + self.width * self.height * 3))
+        f.write(dword(0))
+        f.write(dword(14 + 40))
+
+        # image header
+        f.write(dword(40))
+        f.write(dword(self.width))
+        f.write(dword(self.height))
+        f.write(word(1))
+        f.write(word(24))
+        f.write(dword(0))
+        f.write(dword(self.width * self.height * 3))
+        f.write(dword(0))
+        f.write(dword(0))
+        f.write(dword(0))
+        f.write(dword(0))
+
+        z_min = float('inf')
+        z_max = -float('inf')
+
+        for x in range(self.height):
+            for y in range(self.width):
+                if self.zbuffer[x][y] != -float('inf'):
+                    if self.zbuffer[x][y] > z_max:
+                        z_max = self.zbuffer[x][y]
+
+                    if self.zbuffer[x][y] < z_min:
+                        z_min = self.zbuffer[x][y]
+
+        for x in range(self.height):
+            for y in range(self.width):
+                z_value = self.zbuffer[x][y]
+
+                if z_value == -float('inf'):
+                    z_value = z_min
+
+                z_value = round(((z_value - z_min) / (z_max - z_min)) * 255)
+                z_color = color(z_value, z_value, z_value)
+                f.write(z_color)
 
         f.close()

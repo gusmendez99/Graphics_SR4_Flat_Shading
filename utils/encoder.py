@@ -2,7 +2,7 @@
     Universidad del Valle de Guatemala
     Gustavo Mendez - 18500
 
-    gl-encoder.py - simple encoder functions
+    encoder.py - simple encoder functions
 """
 
 import struct

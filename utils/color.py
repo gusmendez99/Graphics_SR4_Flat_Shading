@@ -2,7 +2,7 @@
     Universidad del Valle de Guatemala
     Gustavo Mendez - 18500
 
-    gl-color.py - simple color functions
+    color.py - simple color functions
 """
 
 def normalizeColorArray(colors_array):
